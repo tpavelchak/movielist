@@ -1,0 +1,11 @@
+<h1>Movie List</h1>
+<h2>Studio Ghibli movies:</h2>
+
+{% for movie in movies_data %}
+    <h3>{{ movie.title }}</h3>
+    <ul>
+    {% for person in movie.people %}
+        <li>{{ person.name }}</li>
+    {% endfor %}
+    </ul>
+{% endfor %}
