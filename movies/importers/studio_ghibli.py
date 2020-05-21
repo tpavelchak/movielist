@@ -1,9 +1,9 @@
 """Model uses the Studio Ghibli API to import movies and people.
 See https://ghibliapi.herokuapp.com/ for more details.
 """
-import requests
-
 from django.core.cache import cache
+
+import requests
 
 from . import constants
 
@@ -19,7 +19,7 @@ def get_movies_data():
     movies_data = cache.get(constants.MOVIES_DATA_CACHE_KEY)
     if movies_data is None:
         try:
-            movies_data = _import_movies_data()
+            movies_data = group_movies_data(*_import_movies_data())
             cache.set(constants.MOVIES_DATA_CACHE_KEY,
                       movies_data,
                       constants.MOVIES_DATA_CACHE_TTL)
@@ -38,21 +38,13 @@ def get_movies_data():
     return movies_data
 
 
-def _import_movies_data():
-    """Import movies and people data using Studio Ghibli API.
+def group_movies_data(movies, people):
+    """Mapping people to appropriate movies.
 
     Return:
         list: list of a dictionaries representation of movies with people
     """
-    # Import movies
-    r = requests.get(constants.STUDIO_GHIBLI_API_FILMS_URL)
-    movies = r.json()
-
-    # Import people
-    r = requests.get(constants.STUDIO_GHIBLI_API_PEOPLE_URL)
-    people = r.json()
-
-    # Group people to appropriate movies
+    # Map people to appropriate movies
     movies_data = {}
     for movie in movies:
         movie['people'] = []
@@ -64,3 +56,20 @@ def _import_movies_data():
             movies_data[movie_id]['people'].append(person)
 
     return sorted(list(movies_data.values()), key=lambda m: m['title'])
+
+
+def _import_movies_data():
+    """Import movies and people data using Studio Ghibli API.
+
+    Return:
+        tuple: `(movies, people)` raw movies and people data
+    """
+    # Import movies
+    r = requests.get(constants.STUDIO_GHIBLI_API_FILMS_URL)
+    movies = r.json()
+
+    # Import people
+    r = requests.get(constants.STUDIO_GHIBLI_API_PEOPLE_URL)
+    people = r.json()
+
+    return movies, people
