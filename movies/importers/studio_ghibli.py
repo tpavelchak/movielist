@@ -18,12 +18,22 @@ def get_movies_data():
     # movies data and move them to cache on one minute
     movies_data = cache.get(constants.MOVIES_DATA_CACHE_KEY)
     if movies_data is None:
-        movies_data = _import_movies_data()
+        try:
+            movies_data = _import_movies_data()
+            cache.set(constants.MOVIES_DATA_CACHE_KEY,
+                      movies_data,
+                      constants.MOVIES_DATA_CACHE_TTL)
 
-        # Cache
-        cache.set(constants.MOVIES_DATA_CACHE_KEY,
-                  movies_data,
-                  constants.MOVIES_DATA_CACHE_TTL)
+            # Set to cache new backup
+            cache.set(constants.MOVIES_DATA_BACKUP_CACHE_KEY,
+                      movies_data,
+                      constants.MOVIES_DATA_BACKUP_CACHE_TTL)
+        except Exception as e:
+            # Ensure we have backup otherwise raise exception
+            backup = cache.get(constants.MOVIES_DATA_BACKUP_CACHE_KEY)
+            if backup is None:
+                raise e
+            movies_data = backup
 
     return movies_data
 
@@ -53,5 +63,4 @@ def _import_movies_data():
             movie_id = movie.split('/')[-1]
             movies_data[movie_id]['people'].append(person)
 
-    return list(movies_data.values())
-
+    return sorted(list(movies_data.values()), key=lambda m: m['title'])
