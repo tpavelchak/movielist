@@ -1,8 +1,8 @@
 """Model uses the Studio Ghibli API to import movies and people.
+
 See https://ghibliapi.herokuapp.com/ for more details.
 """
 from django.core.cache import cache
-
 import requests
 
 from . import constants
@@ -39,7 +39,7 @@ def get_movies_data():
 
 
 def group_movies_data(movies, people):
-    """Mapping people to appropriate movies.
+    """Map people to appropriate movies.
 
     Return:
         list: list of a dictionaries representation of movies with people

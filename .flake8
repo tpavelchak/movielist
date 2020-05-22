@@ -1,0 +1,9 @@
+[flake8]
+# same as pep8 but enforces alphabetical ordering
+import-order-style=google
+
+# packages that should be considered local to the app. These need to be in the last group
+application-import-names=movies
+
+# rules to ignore
+ignore=D100,D101,D102,D103,D104

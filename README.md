@@ -24,5 +24,5 @@ Tests can be run using `python manage.py test`.
 
 ## Coding style
 
-THe codebase is [PEP8](https://www.python.org/dev/peps/pep-0008/) compliant.
+The codebase is [PEP8](https://www.python.org/dev/peps/pep-0008/) compliant.
 We can use command `./scripts/style_guide_check.sh` to verify it.
