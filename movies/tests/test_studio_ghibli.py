@@ -1,9 +1,13 @@
 import json
 import os
+from unittest import mock
 
+from django.core.cache import cache
 from django.test import TestCase
+import httpretty
+import requests
 
-from movies.importers import studio_ghibli
+from movies.importers import constants, studio_ghibli
 
 
 def read_json(rel_path):
@@ -14,15 +18,15 @@ def read_json(rel_path):
     return data
 
 
-class MoviesTestCase(TestCase):
+class BaseTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.raw_movies_data = read_json('sg_raw_movies_data.json')
-        cls.raw_people_data = read_json('sg_raw_people_data.json')
+        cls.movies_data = read_json('sg_movies_data.json')
+        cls.people_data = read_json('sg_people_data.json')
 
-    def _get_simplified_grouped_data(self):
-        grouped_data = studio_ghibli.group_movies_data(self.raw_movies_data,
-                                                       self.raw_people_data)
+    def get_simplified_grouped_data(self):
+        grouped_data = studio_ghibli.group_movies_data(self.movies_data,
+                                                       self.people_data)
         # Simplify grouped data for testing
         simplified_data = {}
         for movie in grouped_data:
@@ -33,10 +37,10 @@ class MoviesTestCase(TestCase):
         return simplified_data
 
     def test_grouping_movies_with_people_data(self):
-        grouped_data = self._get_simplified_grouped_data()
+        grouped_data = self.get_simplified_grouped_data()
 
         people_movies_count = {}
-        for person in self.raw_people_data:
+        for person in self.people_data:
             for movie in person['films']:
                 movie_id = movie.split('/')[-1]
                 people_movies_count[movie_id] = \
@@ -48,21 +52,86 @@ class MoviesTestCase(TestCase):
             self.assertTrue(len(grouped_data[movie_id]), people_count)
 
     def test_movies_data_sorting(self):
-        grouped_data = studio_ghibli.group_movies_data(self.raw_movies_data,
-                                                       self.raw_people_data)
+        grouped_data = studio_ghibli.group_movies_data(self.movies_data,
+                                                       self.people_data)
         sorted_movies_title = []
         for movies in grouped_data:
             sorted_movies_title.append(movies['title'])
 
         movies_title = []
-        for movies in self.raw_movies_data:
+        for movies in self.movies_data:
             movies_title.append(movies['title'])
         movies_title.sort()
 
         self.assertListEqual(sorted_movies_title, movies_title)
 
-    def test_caching_movies_data(self):
-        pass
 
-    def test_backup_movies_data(self):
-        pass
+class MoviesTestCase(BaseTestCase):
+    def setUp(self):
+        super(MoviesTestCase, self).setUp()
+        cache.clear()
+        httpretty.enable()
+
+        self.mock_import_movies_data_response()
+
+    def tearDown(self):
+        httpretty.disable()
+        super(MoviesTestCase, self).tearDown()
+
+    def mock_import_movies_data_response(self):
+        httpretty.register_uri(
+            httpretty.GET,
+            constants.STUDIO_GHIBLI_API_FILMS_URL,
+            content_type='application/json',
+            body=json.dumps(self.movies_data)
+        )
+        httpretty.register_uri(
+            httpretty.GET,
+            constants.STUDIO_GHIBLI_API_PEOPLE_URL,
+            content_type='application/json',
+            body=json.dumps(self.people_data)
+        )
+
+    def exception_callback(self):
+        raise requests.Timeout('Connection timed out.')
+
+    @mock.patch('django.core.cache.cache.get', wraps=cache.get)
+    @mock.patch('django.core.cache.cache.set', wraps=cache.set)
+    def test_caching_movies_data(self, cache_set_mock, cache_get_mock):
+        movies_data = studio_ghibli.get_movies_data()
+
+        # Ensure movies data pushed to cache
+        self.assertEqual(cache_get_mock.call_count, 1)
+        cache_get_mock.assert_called_with(constants.SG_MOVIES_DATA_CACHE_KEY)
+        self.assertEqual(cache_set_mock.call_count, 2)
+        cache_set_mock.assert_has_calls([
+            mock.call(constants.SG_MOVIES_DATA_CACHE_KEY, movies_data,
+                      constants.SG_MOVIES_DATA_CACHE_TTL),
+            mock.call(constants.SG_MOVIES_DATA_BACKUP_CACHE_KEY, movies_data,
+                      constants.SG_MOVIES_DATA_BACKUP_CACHE_TTL)])
+
+        cache_set_mock.reset_mock()
+        cache_get_mock.reset_mock()
+        studio_ghibli.get_movies_data()
+
+        # Ensure movies data is returned from the cache
+        self.assertEqual(cache_get_mock.call_count, 1)
+        cache_get_mock.assert_called_with(constants.SG_MOVIES_DATA_CACHE_KEY)
+        self.assertEqual(cache_set_mock.call_count, 0)
+
+    @mock.patch('django.core.cache.cache.get', wraps=cache.get)
+    def test_backup_movies_data(self, cache_get_mock):
+        # Push movies data into cache
+        studio_ghibli.get_movies_data()
+
+        # Remove data for emulating using backup
+        cache_get_mock.reset_mock()
+        cache.delete(constants.SG_MOVIES_DATA_CACHE_KEY)
+
+        with mock.patch('movies.importers.studio_ghibli.import_movies_data',
+                        wraps=self.exception_callback):
+            studio_ghibli.get_movies_data()
+
+        self.assertEqual(cache_get_mock.call_count, 2)
+        cache_get_mock.assert_called_with(
+            constants.SG_MOVIES_DATA_BACKUP_CACHE_KEY)

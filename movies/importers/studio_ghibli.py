@@ -16,24 +16,29 @@ def get_movies_data():
     """
     # Ensure we have movies data in cache otherwise import the latest
     # movies data and move them to cache on one minute
-    movies_data = cache.get(constants.MOVIES_DATA_CACHE_KEY)
+    movies_data = cache.get(constants.SG_MOVIES_DATA_CACHE_KEY)
     if movies_data is None:
         try:
-            movies_data = group_movies_data(*_import_movies_data())
-            cache.set(constants.MOVIES_DATA_CACHE_KEY,
-                      movies_data,
-                      constants.MOVIES_DATA_CACHE_TTL)
-
-            # Set to cache new backup
-            cache.set(constants.MOVIES_DATA_BACKUP_CACHE_KEY,
-                      movies_data,
-                      constants.MOVIES_DATA_BACKUP_CACHE_TTL)
+            imported_raw_data = import_movies_data()
         except Exception as e:
             # Ensure we have backup otherwise raise exception
-            backup = cache.get(constants.MOVIES_DATA_BACKUP_CACHE_KEY)
+            backup = cache.get(constants.SG_MOVIES_DATA_BACKUP_CACHE_KEY)
             if backup is None:
                 raise e
             movies_data = backup
+            cache.set(constants.SG_MOVIES_DATA_CACHE_KEY,
+                      movies_data,
+                      constants.SG_MOVIES_DATA_CACHE_TTL)
+        else:
+            movies_data = group_movies_data(*imported_raw_data)
+            cache.set(constants.SG_MOVIES_DATA_CACHE_KEY,
+                      movies_data,
+                      constants.SG_MOVIES_DATA_CACHE_TTL)
+
+            # Backup movies data on 24 hours just in case
+            cache.set(constants.SG_MOVIES_DATA_BACKUP_CACHE_KEY,
+                      movies_data,
+                      constants.SG_MOVIES_DATA_BACKUP_CACHE_TTL)
 
     return movies_data
 
@@ -58,7 +63,7 @@ def group_movies_data(movies, people):
     return sorted(list(movies_data.values()), key=lambda m: m['title'])
 
 
-def _import_movies_data():
+def import_movies_data():
     """Import movies and people data using Studio Ghibli API.
 
     Return:
