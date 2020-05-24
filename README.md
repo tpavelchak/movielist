@@ -1,4 +1,4 @@
-# Movie List application
+# Movie List Application
 [![Python 3.6](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
 
 Python application that provides a plain list of all movies of Studio Ghibli company using the Ghibli API.
