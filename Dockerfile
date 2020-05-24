@@ -8,3 +8,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 ENV TZ=UTC
 ENV PYTHONUNBUFFERED=1
+
+CMD python manage.py migrate
