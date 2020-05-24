@@ -31,7 +31,7 @@ Python application that provides a plain list of all movies of Studio Ghibli com
 
 ### Running Tests
 
-Tests can be run using `python manage.py test`.
+Tests can be run by the command `python manage.py test` in case of using a virtual environment. Run the command `docker-compose run web python manage.py test` in case of using docker.
 
 ## Coding style
 
